@@ -14,9 +14,13 @@ async function main(): Promise<void> {
   const client = new PipelineClient(config.pipelineUrl);
   const sender = new Sender(store, client);
 
-  // Window tracker — stores window changes locally
+  // Track current window state so screenshots include context
+  let currentWindow = { title: '', owner: '', timestamp: '' };
+
+  // Window tracker — stores window changes locally and updates current state
   const windowTracker = new WindowTracker(config.windowPollIntervalMs, (info) => {
     logger.debug({ title: info.title, owner: info.owner }, 'Window change');
+    currentWindow = { title: info.title, owner: info.owner, timestamp: info.timestamp };
     store.insert({
       id: uuid(),
       type: 'window',
@@ -25,14 +29,21 @@ async function main(): Promise<void> {
     });
   });
 
-  // Screenshot capture — stores screenshots as base64 locally
+  // Screenshot capture — stores window context alongside base64 screenshot
+  // The pipeline uses the window context for text-based extraction and
+  // sensitivity filtering. The base64 image is stored for future OCR.
   const screenshotCapture = new ScreenshotCapture(config.screenshotIntervalMs, (buf, ts) => {
-    logger.debug({ size: buf.length }, 'Screenshot captured');
+    logger.debug({ size: buf.length, windowTitle: currentWindow.title }, 'Screenshot captured');
     store.insert({
       id: uuid(),
       type: 'screenshot',
       timestamp: ts,
-      data: buf.toString('base64'),
+      data: JSON.stringify({
+        windowTitle: currentWindow.title,
+        windowOwner: currentWindow.owner,
+        screenshotBase64: buf.toString('base64'),
+        capturedAt: ts,
+      }),
     });
   });
 
