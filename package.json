@@ -1,0 +1,32 @@
+{
+  "name": "knowledge-harvester-desktop",
+  "version": "1.0.0",
+  "description": "Desktop capture agent for Knowledge Harvester — screenshots + window tracking",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "npx tsx src/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "active-win": "^8.2.1",
+    "better-sqlite3": "^12.8.0",
+    "dotenv": "^17.3.1",
+    "pino": "^10.3.1",
+    "screenshot-desktop": "^1.15.3",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.5.0",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
