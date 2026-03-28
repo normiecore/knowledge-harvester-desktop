@@ -8,5 +8,6 @@ export const config = {
   idleThresholdMs: parseInt(process.env.IDLE_THRESHOLD_MS ?? '300000', 10),
   periodicCaptureMs: parseInt(process.env.PERIODIC_CAPTURE_MS ?? '60000', 10),
   dashboardPort: parseInt(process.env.DASHBOARD_PORT ?? '3333', 10),
+  dashboardHost: process.env.DASHBOARD_HOST ?? '127.0.0.1',
   logLevel: process.env.LOG_LEVEL ?? 'info',
 };
