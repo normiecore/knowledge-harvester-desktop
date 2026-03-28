@@ -98,16 +98,36 @@ async function main(): Promise<void> {
   }, 6 * 60 * 60 * 1000);
 
   // Graceful shutdown
-  const shutdown = async () => {
+  let shuttingDown = false;
+  const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
     logger.info('Shutting down...');
-    monitor.stop();
-    sender.stop();
-    clearInterval(stateInterval);
-    clearInterval(purgeInterval);
-    await dashboard.close();
-    store.close();
-    logger.info('Shutdown complete');
-    process.exit(0);
+
+    // Force-exit if cleanup takes too long
+    const forceExitTimer = setTimeout(() => {
+      logger.error('Shutdown timed out after 5s, forcing exit');
+      process.exit(1);
+    }, 5000);
+    // Don't let this timer keep the process alive on its own
+    forceExitTimer.unref();
+
+    (async () => {
+      monitor.stop();
+      sender.stop();
+      clearInterval(stateInterval);
+      clearInterval(purgeInterval);
+      await dashboard.close();
+      store.close();
+      logger.info('Shutdown complete');
+      clearTimeout(forceExitTimer);
+      process.exit(0);
+    })().catch((err) => {
+      logger.error({ err }, 'Error during shutdown');
+      clearTimeout(forceExitTimer);
+      process.exit(1);
+    });
   };
 
   process.on('SIGINT', shutdown);
