@@ -6,110 +6,436 @@
 <title>Knowledge Harvester — Desktop Agent</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
-  h1 { font-size: 1.4em; color: #a5b4fc; margin-bottom: 4px; }
-  .subtitle { color: #64748b; font-size: 0.85em; margin-bottom: 20px; }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 1.5em; color: #a5b4fc; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 0.85em; margin-bottom: 24px; }
+
+  /* How it works banner */
+  .how-it-works { background: #1a1a2e; border: 1px solid #2d2d5e; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+  .how-it-works h2 { font-size: 1em; color: #818cf8; margin-bottom: 12px; }
+  .how-it-works .pipeline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .how-it-works .step { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; font-size: 0.8em; text-align: center; min-width: 100px; }
+  .how-it-works .step .icon { font-size: 1.4em; display: block; margin-bottom: 4px; }
+  .how-it-works .step .name { color: #e2e8f0; font-weight: 600; }
+  .how-it-works .step .desc { color: #64748b; font-size: 0.85em; margin-top: 2px; }
+  .how-it-works .arrow { color: #4f46e5; font-size: 1.2em; }
+  .how-it-works .explanation { color: #94a3b8; font-size: 0.8em; line-height: 1.6; }
+  .how-it-works .explanation strong { color: #c7d2fe; }
+  .collapse-btn { background: none; border: 1px solid #334155; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75em; float: right; }
+  .collapse-btn:hover { background: #1e293b; color: #e2e8f0; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
   .stat { background: #1e293b; border-radius: 8px; padding: 16px; text-align: center; }
-  .stat .value { font-size: 2em; font-weight: 700; color: #6366f1; }
-  .stat .label { font-size: 0.75em; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .stat .value { font-size: 1.8em; font-weight: 700; color: #6366f1; }
+  .stat .label { font-size: 0.7em; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .stat .hint { font-size: 0.65em; color: #475569; margin-top: 4px; }
   .stat.active .value { color: #22c55e; }
   .stat.idle .value { color: #f59e0b; }
-  .current-window { background: #1e293b; border-radius: 8px; padding: 16px; margin-bottom: 20px; border-left: 4px solid #6366f1; }
+
+  /* Current window */
+  .current-window { background: #1e293b; border-radius: 8px; padding: 16px; margin-bottom: 24px; border-left: 4px solid #6366f1; display: flex; gap: 16px; align-items: center; }
+  .current-window .cw-icon { font-size: 2em; }
+  .current-window .cw-info { flex: 1; }
   .current-window .title { font-size: 1.1em; color: #f1f5f9; }
   .current-window .owner { color: #94a3b8; font-size: 0.85em; }
+  .current-window .cw-meta { display: flex; gap: 12px; margin-top: 6px; }
+  .current-window .cw-tag { font-size: 0.7em; padding: 2px 8px; border-radius: 12px; background: #312e81; color: #a5b4fc; }
+  .current-window .cw-duration { font-size: 0.8em; color: #94a3b8; }
+
+  /* Two column layout */
+  .columns { display: grid; grid-template-columns: 1fr 380px; gap: 24px; }
+  @media (max-width: 1000px) { .columns { grid-template-columns: 1fr; } }
+
+  /* Feed */
   .feed { display: flex; flex-direction: column; gap: 8px; }
-  .capture { background: #1e293b; border-radius: 8px; padding: 12px 16px; display: flex; gap: 16px; align-items: center; cursor: pointer; transition: background 0.15s; }
+  .capture { background: #1e293b; border-radius: 8px; padding: 14px 16px; display: grid; grid-template-columns: 90px auto 1fr 70px 60px; gap: 12px; align-items: center; cursor: pointer; transition: background 0.15s; }
   .capture:hover { background: #334155; }
-  .capture .time { color: #64748b; font-size: 0.8em; min-width: 80px; }
-  .capture .trigger { font-size: 0.7em; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+  .capture .time { color: #64748b; font-size: 0.8em; }
+  .capture .trigger { font-size: 0.7em; padding: 3px 10px; border-radius: 12px; font-weight: 600; text-align: center; white-space: nowrap; }
   .trigger.window_change { background: #312e81; color: #a5b4fc; }
   .trigger.idle_to_active { background: #422006; color: #fbbf24; }
   .trigger.periodic { background: #052e16; color: #4ade80; }
-  .capture .info { flex: 1; }
-  .capture .window-title { color: #e2e8f0; font-size: 0.9em; }
-  .capture .meta { color: #64748b; font-size: 0.75em; margin-top: 2px; }
-  .capture .duration { color: #94a3b8; font-size: 0.8em; min-width: 60px; text-align: right; }
-  .sent-badge { font-size: 0.65em; padding: 2px 6px; border-radius: 8px; }
+  .capture .info { min-width: 0; }
+  .capture .window-title { color: #e2e8f0; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .capture .meta { color: #64748b; font-size: 0.75em; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .capture .duration { color: #94a3b8; font-size: 0.85em; text-align: right; }
+  .sent-badge { font-size: 0.65em; padding: 2px 6px; border-radius: 8px; text-align: center; }
   .sent-badge.yes { background: #052e16; color: #4ade80; }
   .sent-badge.no { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+
+  /* Screenshot thumb in feed */
   .capture .screenshot-thumb { width: 80px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #334155; }
-  .section-title { color: #94a3b8; font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 8px; }
-  .screenshot-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; }
+
+  /* Sidebar */
+  .sidebar { display: flex; flex-direction: column; gap: 16px; }
+  .panel { background: #1e293b; border-radius: 8px; padding: 16px; }
+  .panel h3 { font-size: 0.8em; color: #818cf8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .panel .field { margin-bottom: 10px; }
+  .panel .field-label { font-size: 0.7em; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .panel .field-value { font-size: 0.85em; color: #e2e8f0; word-break: break-all; }
+  .panel .field-hint { font-size: 0.7em; color: #475569; margin-top: 2px; }
+
+  /* Latest screenshot */
+  .latest-screenshot { width: 100%; border-radius: 6px; border: 1px solid #334155; cursor: pointer; }
+
+  /* Session context */
+  .session-list { list-style: none; padding: 0; }
+  .session-list li { font-size: 0.8em; color: #94a3b8; padding: 4px 0; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; }
+  .session-list li:last-child { border-bottom: none; }
+  .session-list .app { color: #e2e8f0; }
+  .session-list .dur { color: #64748b; font-size: 0.85em; }
+
+  /* Section headers */
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .section-title { color: #94a3b8; font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; }
+  .section-count { color: #475569; font-size: 0.75em; }
+
+  /* Modal */
+  .screenshot-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
   .screenshot-modal.open { display: flex; }
-  .screenshot-modal img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+  .screenshot-modal img { max-width: 90vw; max-height: 85vh; border-radius: 8px; }
+  .screenshot-modal .modal-hint { color: #64748b; font-size: 0.8em; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+  .empty-state .icon { font-size: 3em; margin-bottom: 12px; }
+  .empty-state .msg { font-size: 1em; color: #94a3b8; margin-bottom: 8px; }
+  .empty-state .hint { font-size: 0.85em; }
+
+  /* Legend */
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: #94a3b8; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
 </style>
 </head>
 <body>
   <h1>Knowledge Harvester — Desktop Agent</h1>
-  <p class="subtitle">Activity-aware capture preview</p>
+  <p class="subtitle">Activity-aware capture preview — showing what data flows to the pipeline before it's sent</p>
+
+  <!-- How it works -->
+  <div class="how-it-works" id="how-it-works">
+    <button class="collapse-btn" onclick="this.parentElement.style.display='none'">Hide</button>
+    <h2>How This Works</h2>
+    <div class="pipeline">
+      <div class="step"><span class="icon">👁</span><span class="name">Window Tracker</span><span class="desc">Polls active window every 1s</span></div>
+      <span class="arrow">&#8594;</span>
+      <div class="step"><span class="icon">💤</span><span class="name">Idle Detection</span><span class="desc">Pauses when you're away</span></div>
+      <span class="arrow">&#8594;</span>
+      <div class="step"><span class="icon">📸</span><span class="name">Smart Capture</span><span class="desc">Screenshots on events</span></div>
+      <span class="arrow">&#8594;</span>
+      <div class="step"><span class="icon">🏷</span><span class="name">Metadata</span><span class="desc">App, doc, duration, context</span></div>
+      <span class="arrow">&#8594;</span>
+      <div class="step"><span class="icon">💾</span><span class="name">Local Queue</span><span class="desc">SQLite buffer (offline-safe)</span></div>
+      <span class="arrow">&#8594;</span>
+      <div class="step" style="border-color: #4f46e5;"><span class="icon">🚀</span><span class="name">Pipeline</span><span class="desc">OCR + LLM extraction</span></div>
+    </div>
+    <div class="explanation">
+      <strong>Captures trigger on 3 events:</strong> (1) <strong>Window change</strong> — you switch apps or documents, (2) <strong>Idle-to-active</strong> — you return from being away 5+ minutes, (3) <strong>Periodic</strong> — every 60s as a fallback during active use.
+      Each capture includes a screenshot plus rich metadata: which app, which document, how long you were there, what you were doing before, and the browser URL if applicable.
+      <br><br>
+      <strong>What happens next:</strong> Captures queue locally in SQLite. When the pipeline server (GB10) is reachable, they drain automatically. The pipeline runs OCR on screenshots, then an LLM extracts knowledge engrams — summaries, tags, and confidence scores. The metadata you see below makes those extractions significantly richer.
+    </div>
+  </div>
+
+  <!-- Stats -->
   <div class="stats">
-    <div class="stat" id="stat-state"><div class="value" id="state-value">--</div><div class="label">State</div></div>
-    <div class="stat"><div class="value" id="total-value">--</div><div class="label">Total Captures</div></div>
-    <div class="stat"><div class="value" id="queued-value">--</div><div class="label">Queued</div></div>
-    <div class="stat"><div class="value" id="sent-value">--</div><div class="label">Sent</div></div>
+    <div class="stat" id="stat-state">
+      <div class="value" id="state-value">--</div>
+      <div class="label">State</div>
+      <div class="hint">active = capturing, idle = paused</div>
+    </div>
+    <div class="stat">
+      <div class="value" id="total-value">--</div>
+      <div class="label">Total Captures</div>
+      <div class="hint">Screenshots taken this session</div>
+    </div>
+    <div class="stat">
+      <div class="value" id="queued-value">--</div>
+      <div class="label">Queued</div>
+      <div class="hint">Waiting to send to pipeline</div>
+    </div>
+    <div class="stat">
+      <div class="value" id="sent-value">--</div>
+      <div class="label">Sent</div>
+      <div class="hint">Successfully delivered</div>
+    </div>
+    <div class="stat">
+      <div class="value" id="uptime-value">--</div>
+      <div class="label">Uptime</div>
+      <div class="hint">Time since agent started</div>
+    </div>
   </div>
+
+  <!-- Current window -->
   <div class="current-window" id="current-window">
-    <div class="title" id="cw-title">Waiting for data...</div>
-    <div class="owner" id="cw-owner"></div>
+    <div class="cw-icon" id="cw-icon">👁</div>
+    <div class="cw-info">
+      <div style="font-size: 0.7em; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Currently Tracking</div>
+      <div class="title" id="cw-title">Waiting for first window event...</div>
+      <div class="owner" id="cw-owner"></div>
+      <div class="cw-meta">
+        <span class="cw-tag" id="cw-category">--</span>
+        <span class="cw-duration" id="cw-duration"></span>
+      </div>
+    </div>
   </div>
-  <div class="section-title">Recent Captures</div>
-  <div class="feed" id="feed"></div>
+
+  <!-- Two column layout -->
+  <div class="columns">
+    <!-- Main feed -->
+    <div>
+      <div class="section-header">
+        <span class="section-title">Capture Feed</span>
+        <span class="section-count" id="feed-count"></span>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background: #6366f1;"></div> window_change</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #f59e0b;"></div> idle_to_active</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #22c55e;"></div> periodic</div>
+      </div>
+      <div style="height: 12px;"></div>
+      <div class="feed" id="feed">
+        <div class="empty-state">
+          <div class="icon">📸</div>
+          <div class="msg">No captures yet</div>
+          <div class="hint">Switch between some windows — captures trigger on app/document changes.<br>Each capture takes a screenshot and records what you were doing and for how long.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <!-- Latest screenshot -->
+      <div class="panel" id="screenshot-panel" style="display:none;">
+        <h3>Latest Screenshot</h3>
+        <img class="latest-screenshot" id="latest-screenshot" src="" onclick="showScreenshot(this.dataset.captureId)">
+        <div class="field" style="margin-top: 8px;">
+          <div class="field-hint">Click to enlarge. This is what gets sent to PaddleOCR for text extraction.</div>
+        </div>
+      </div>
+
+      <!-- Selected capture detail -->
+      <div class="panel" id="detail-panel">
+        <h3>Capture Detail</h3>
+        <div id="detail-empty" style="color: #475569; font-size: 0.85em;">Click a capture in the feed to inspect its full metadata payload.</div>
+        <div id="detail-content" style="display:none;">
+          <div class="field">
+            <div class="field-label">Trigger Reason</div>
+            <div class="field-value" id="d-trigger">--</div>
+            <div class="field-hint">Why this capture was taken</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Window</div>
+            <div class="field-value" id="d-window">--</div>
+          </div>
+          <div class="field">
+            <div class="field-label">App Category</div>
+            <div class="field-value" id="d-category">--</div>
+            <div class="field-hint">Auto-classified: editor, browser, communication, document, terminal, other</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Document Name</div>
+            <div class="field-value" id="d-document">--</div>
+            <div class="field-hint">Extracted from window title if a file extension is detected</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Browser URL</div>
+            <div class="field-value" id="d-url">--</div>
+            <div class="field-hint">Captured from Chrome/Edge if available</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Duration in Window</div>
+            <div class="field-value" id="d-duration">--</div>
+            <div class="field-hint">How long user was in this window before capture triggered</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Idle Seconds</div>
+            <div class="field-value" id="d-idle">--</div>
+            <div class="field-hint">Seconds since last keyboard/mouse input</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Previous Window</div>
+            <div class="field-value" id="d-prev">--</div>
+            <div class="field-hint">What they came from (workflow context for the LLM)</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Capture Sequence</div>
+            <div class="field-value" id="d-seq">--</div>
+            <div class="field-hint">Position in this session — tells the LLM how far into the workday</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Pipeline Status</div>
+            <div class="field-value" id="d-status">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Session context -->
+      <div class="panel">
+        <h3>Session Context</h3>
+        <div class="field-hint" style="margin-bottom: 8px;">Recent window history sent with each capture. Gives the LLM a narrative of what the user was doing.</div>
+        <ul class="session-list" id="session-list">
+          <li style="color: #475569;">No session history yet — switch between a few apps</li>
+        </ul>
+      </div>
+
+      <!-- What the pipeline receives -->
+      <div class="panel">
+        <h3>Pipeline Payload Preview</h3>
+        <div class="field-hint" style="margin-bottom: 8px;">This is the JSON payload that gets sent to POST /api/captures on the pipeline server.</div>
+        <pre id="payload-preview" style="font-size: 0.75em; color: #94a3b8; background: #0f172a; padding: 12px; border-radius: 6px; overflow-x: auto; max-height: 300px; white-space: pre-wrap;">Select a capture to see the payload</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal -->
   <div class="screenshot-modal" id="modal" onclick="this.classList.remove('open')">
     <img id="modal-img" src="">
+    <div class="modal-hint">Click anywhere to close</div>
   </div>
+
 <script>
-  const feed = document.getElementById('feed');
-  const modal = document.getElementById('modal');
-  const modalImg = document.getElementById('modal-img');
+  var feed = document.getElementById('feed');
+  var modal = document.getElementById('modal');
+  var modalImg = document.getElementById('modal-img');
+  var startTime = Date.now();
+  var allCaptures = [];
+
+  var categoryIcons = {
+    editor: '&#128221;', browser: '&#127760;', communication: '&#128172;',
+    document: '&#128196;', terminal: '&#9000;', other: '&#128187;'
+  };
+
   function fmt(ts) {
     return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
   function fmtDuration(s) {
-    if (!s && s !== 0) return '';
+    if (!s && s !== 0) return '--';
     if (s < 60) return s + 's';
     return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
   }
-  function renderCapture(c) {
-    const meta = c.metadata || {};
-    const div = document.createElement('div');
+  function fmtUptime() {
+    var s = Math.floor((Date.now() - startTime) / 1000);
+    var h = Math.floor(s / 3600); s %= 3600;
+    var m = Math.floor(s / 60); s %= 60;
+    return (h > 0 ? h + 'h ' : '') + m + 'm ' + s + 's';
+  }
+
+  function showDetail(c) {
+    var meta = c.metadata || {};
+    document.getElementById('detail-empty').style.display = 'none';
+    document.getElementById('detail-content').style.display = 'block';
+    document.getElementById('d-trigger').textContent = meta.triggerReason || '--';
+    document.getElementById('d-window').textContent = (meta.windowOwner || '') + ' — ' + (meta.windowTitle || c.data.windowTitle || '');
+    document.getElementById('d-category').textContent = meta.appCategory || '--';
+    document.getElementById('d-document').textContent = meta.documentName || '(none detected)';
+    document.getElementById('d-url').textContent = meta.browserUrl || '(not a browser)';
+    document.getElementById('d-duration').textContent = fmtDuration(meta.durationSeconds);
+    document.getElementById('d-idle').textContent = (meta.idleSeconds != null ? meta.idleSeconds + 's' : '--');
+    document.getElementById('d-prev').textContent = meta.previousWindow ? meta.previousWindow.owner + ' — ' + meta.previousWindow.title : '(first capture)';
+    document.getElementById('d-seq').textContent = meta.captureSequence ? '#' + meta.captureSequence : '--';
+    document.getElementById('d-status').innerHTML = c.sent ? '<span style="color:#4ade80;">Sent to pipeline</span>' : '<span style="color:#f59e0b;">Queued locally</span>';
+
+    // Show payload preview
+    var payload = {
+      id: c.id,
+      userId: 'user-1',
+      sourceType: 'desktop_screenshot',
+      sourceApp: 'knowledge-harvester-desktop',
+      capturedAt: c.timestamp,
+      rawContent: '{ screenshotBase64: "' + (c.hasScreenshot ? '[' + (c.data.windowTitle || 'screenshot') + ' JPEG ~200KB]' : 'null') + '", windowTitle: "' + (c.data.windowTitle || '') + '" }',
+      metadata: meta
+    };
+    document.getElementById('payload-preview').textContent = JSON.stringify(payload, null, 2);
+
+    // Update session context from this capture
+    if (meta.sessionContext && meta.sessionContext.length > 0) {
+      var list = document.getElementById('session-list');
+      list.innerHTML = '';
+      meta.sessionContext.forEach(function(s) {
+        var li = document.createElement('li');
+        li.innerHTML = '<span class="app">' + s.owner + ' — ' + s.title + '</span><span class="dur">' + fmtDuration(s.durationSeconds) + '</span>';
+        list.appendChild(li);
+      });
+    }
+
+    // Show screenshot if available
+    if (c.hasScreenshot) {
+      document.getElementById('screenshot-panel').style.display = 'block';
+      var img = document.getElementById('latest-screenshot');
+      img.src = '/api/screenshot/' + c.id;
+      img.dataset.captureId = c.id;
+    }
+  }
+
+  function renderCapture(c, index) {
+    var meta = c.metadata || {};
+    var div = document.createElement('div');
     div.className = 'capture';
+    div.onclick = function() { showDetail(c); };
     div.innerHTML =
-      (c.hasScreenshot ? '<img class="screenshot-thumb" src="/api/screenshot/' + c.id + '" loading="lazy" onclick="event.stopPropagation(); showScreenshot(\'' + c.id + '\')">' : '') +
       '<div class="time">' + fmt(c.timestamp) + '</div>' +
-      '<span class="trigger ' + (meta.triggerReason || '') + '">' + (meta.triggerReason || c.type) + '</span>' +
+      '<span class="trigger ' + (meta.triggerReason || '') + '">' + (meta.triggerReason || c.type).replace('_', ' ') + '</span>' +
       '<div class="info">' +
         '<div class="window-title">' + (meta.windowOwner || '') + (meta.documentName ? ' — ' + meta.documentName : (c.data && c.data.windowTitle ? ' — ' + c.data.windowTitle : '')) + '</div>' +
-        '<div class="meta">' + (meta.appCategory || '') + (meta.browserUrl ? ' · ' + meta.browserUrl : '') + (meta.sessionContext ? ' · ctx: ' + meta.sessionContext.length + ' windows' : '') + '</div>' +
+        '<div class="meta">' +
+          (meta.appCategory ? '<strong>' + meta.appCategory + '</strong>' : '') +
+          (meta.browserUrl ? ' · ' + meta.browserUrl : '') +
+          (meta.sessionContext && meta.sessionContext.length > 0 ? ' · ' + meta.sessionContext.length + ' prior windows' : '') +
+          (meta.captureSequence ? ' · #' + meta.captureSequence : '') +
+        '</div>' +
       '</div>' +
       '<div class="duration">' + fmtDuration(meta.durationSeconds) + '</div>' +
       '<span class="sent-badge ' + (c.sent ? 'yes' : 'no') + '">' + (c.sent ? 'sent' : 'queued') + '</span>';
-    if (c.hasScreenshot) div.onclick = function() { showScreenshot(c.id); };
+
+    // Auto-select first capture to show detail
+    if (index === 0 && allCaptures.length > 0) {
+      setTimeout(function() { showDetail(c); }, 0);
+    }
     return div;
   }
+
   function showScreenshot(id) {
     modalImg.src = '/api/screenshot/' + id;
     modal.classList.add('open');
   }
+
   async function refresh() {
-    const [recentRes, statsRes, stateRes] = await Promise.all([
+    var [recentRes, statsRes, stateRes] = await Promise.all([
       fetch('/api/recent'), fetch('/api/stats'), fetch('/api/state')
     ]);
-    const recent = await recentRes.json();
-    const stats = await statsRes.json();
-    const state = await stateRes.json();
+    allCaptures = await recentRes.json();
+    var stats = await statsRes.json();
+    var state = await stateRes.json();
+
     document.getElementById('state-value').textContent = state.state;
     document.getElementById('stat-state').className = 'stat ' + state.state;
     document.getElementById('total-value').textContent = stats.total;
     document.getElementById('queued-value').textContent = stats.unsent;
     document.getElementById('sent-value').textContent = stats.sent;
+    document.getElementById('uptime-value').textContent = fmtUptime();
+
     if (state.currentWindow) {
       document.getElementById('cw-title').textContent = state.currentWindow.title;
       document.getElementById('cw-owner').textContent = state.currentWindow.owner;
     }
+
+    document.getElementById('feed-count').textContent = allCaptures.length + ' captures';
+
     feed.innerHTML = '';
-    for (const c of recent) feed.appendChild(renderCapture(c));
+    if (allCaptures.length === 0) {
+      feed.innerHTML = '<div class="empty-state"><div class="icon">📸</div><div class="msg">No captures yet</div><div class="hint">Switch between some windows — captures trigger on app/document changes.<br>Each capture takes a screenshot and records what you were doing and for how long.</div></div>';
+    } else {
+      allCaptures.forEach(function(c, i) { feed.appendChild(renderCapture(c, i)); });
+    }
   }
+
+  // Uptime counter
+  setInterval(function() {
+    document.getElementById('uptime-value').textContent = fmtUptime();
+  }, 1000);
+
   var ws = new WebSocket('ws://' + location.host + '/ws');
   ws.onmessage = function() { refresh(); };
   ws.onclose = function() { setTimeout(function() { location.reload(); }, 3000); };

@@ -7,6 +7,7 @@ import { PipelineClient } from './pipeline-client.js';
 import { Sender } from './sender.js';
 import { buildDashboard, updateDashboardState, broadcastCapture } from './dashboard.js';
 import { v4 as uuid } from 'uuid';
+import { exec } from 'node:child_process';
 
 async function main(): Promise<void> {
   logger.info({ userId: config.userId, pipelineUrl: config.pipelineUrl }, 'Knowledge Harvester Desktop Agent starting');
@@ -22,14 +23,15 @@ async function main(): Promise<void> {
     periodicCaptureMs: config.periodicCaptureMs,
     onCapture: async (event: CaptureEvent) => {
       const buf = await screenshotCapture.captureNow();
-      if (!buf) return;
 
-      const captureData = {
+      const captureData: Record<string, string> = {
         windowTitle: event.windowTitle,
         windowOwner: event.windowOwner,
-        screenshotBase64: buf.toString('base64'),
         capturedAt: event.capturedAt,
       };
+      if (buf) {
+        captureData.screenshotBase64 = buf.toString('base64');
+      }
 
       const metadata = {
         triggerReason: event.triggerReason,
@@ -67,7 +69,14 @@ async function main(): Promise<void> {
   // Start dashboard
   const dashboard = await buildDashboard(store);
   await dashboard.listen({ port: config.dashboardPort, host: '0.0.0.0' });
-  logger.info({ port: config.dashboardPort }, 'Dashboard running at http://localhost:' + config.dashboardPort);
+  const dashboardUrl = 'http://localhost:' + config.dashboardPort;
+  logger.info({ port: config.dashboardPort }, 'Dashboard running at ' + dashboardUrl);
+
+  // Auto-open dashboard in default browser
+  const openCmd = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  exec(`${openCmd} ${dashboardUrl}`, (err) => {
+    if (err) logger.debug({ err }, 'Could not auto-open browser');
+  });
 
   // Update dashboard with activity state every second
   const stateInterval = setInterval(() => {
