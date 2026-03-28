@@ -9,6 +9,7 @@ import type { LocalStore } from './local-store.js';
 import { logger } from './logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const dashboardHtml = readFileSync(join(__dirname, 'dashboard.html'), 'utf-8');
 
 interface DashboardState {
   state: string;
@@ -34,8 +35,7 @@ export async function buildDashboard(store: LocalStore): Promise<FastifyInstance
   await app.register(websocket);
 
   app.get('/', async (_req, reply) => {
-    const html = readFileSync(join(__dirname, 'dashboard.html'), 'utf-8');
-    reply.type('text/html').send(html);
+    reply.type('text/html').send(dashboardHtml);
   });
 
   app.get('/api/recent', async () => {

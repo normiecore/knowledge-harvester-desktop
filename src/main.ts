@@ -68,7 +68,7 @@ async function main(): Promise<void> {
 
   // Start dashboard
   const dashboard = await buildDashboard(store);
-  await dashboard.listen({ port: config.dashboardPort, host: '0.0.0.0' });
+  await dashboard.listen({ port: config.dashboardPort, host: '127.0.0.1' });
   const dashboardUrl = 'http://localhost:' + config.dashboardPort;
   logger.info({ port: config.dashboardPort }, 'Dashboard running at ' + dashboardUrl);
 

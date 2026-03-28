@@ -8,7 +8,7 @@ export interface CaptureRecord {
   timestamp: string;
   data: string;
   metadata?: string;
-  sent: boolean;
+  sent: number;
 }
 
 export class LocalStore {

@@ -32,7 +32,7 @@ export interface ActivityMonitorOptions {
   windowPollMs: number;
   idleThresholdMs: number;
   periodicCaptureMs: number;
-  onCapture: (event: CaptureEvent) => void;
+  onCapture: (event: CaptureEvent) => void | Promise<void>;
   getIdleTime?: () => number; // injectable for testing
 }
 
@@ -81,8 +81,14 @@ export class ActivityMonitor {
       idleThresholdMs: this.opts.idleThresholdMs,
       periodicCaptureMs: this.opts.periodicCaptureMs,
     }, 'Activity monitor started');
-    this.interval = setInterval(() => this.tick(), this.opts.windowPollMs);
-    this.tick();
+    this.interval = setInterval(() => this.safeTick(), this.opts.windowPollMs);
+    this.safeTick();
+  }
+
+  private safeTick(): void {
+    this.tick().catch((err) => {
+      logger.error({ err }, 'Activity monitor tick failed (unhandled)');
+    });
   }
 
   stop(): void {
@@ -144,7 +150,11 @@ export class ActivityMonitor {
         capturedAt: new Date().toISOString(),
       };
 
-      this.opts.onCapture(event);
+      try {
+        await Promise.resolve(this.opts.onCapture(event));
+      } catch (cbErr) {
+        logger.error({ cbErr }, 'onCapture callback failed');
+      }
       this.lastPeriodicCapture = now;
 
       if (windowChanged) {

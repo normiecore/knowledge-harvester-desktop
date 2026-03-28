@@ -180,6 +180,72 @@ describe('ActivityMonitor', () => {
       expect(captures[1].captureSequence).toBe(2);
     });
   });
+
+  describe('error handling', () => {
+    it('does not crash when onCapture callback throws', async () => {
+      const throwingMonitor = new ActivityMonitor({
+        windowPollMs: 100,
+        idleThresholdMs: 5000,
+        periodicCaptureMs: 60000,
+        onCapture: () => { throw new Error('callback exploded'); },
+        getIdleTime: () => 0,
+      });
+
+      await throwingMonitor.tick(); // baseline
+
+      (activeWin as any).mockResolvedValue({
+        title: 'Different Window',
+        owner: { name: 'other' },
+      });
+      // Should not throw even though onCapture throws
+      await throwingMonitor.tick();
+      // Monitor should still be in active state
+      expect(throwingMonitor.getState()).toBe('active');
+    });
+
+    it('does not crash when async onCapture rejects', async () => {
+      const rejectingMonitor = new ActivityMonitor({
+        windowPollMs: 100,
+        idleThresholdMs: 5000,
+        periodicCaptureMs: 60000,
+        onCapture: async () => { throw new Error('async callback exploded'); },
+        getIdleTime: () => 0,
+      });
+
+      await rejectingMonitor.tick(); // baseline
+
+      (activeWin as any).mockResolvedValue({
+        title: 'Different Window',
+        owner: { name: 'other' },
+      });
+      // Should not throw even though async onCapture rejects
+      await rejectingMonitor.tick();
+      expect(rejectingMonitor.getState()).toBe('active');
+    });
+
+    it('does not crash when activeWin returns null', async () => {
+      (activeWin as any).mockResolvedValue(null);
+      await monitor.tick();
+      expect(monitor.getState()).toBe('active');
+      expect(monitor.getCurrentWindow()).toBeNull();
+    });
+
+    it('start and stop manage interval lifecycle', () => {
+      monitor.start();
+      expect((monitor as any).interval).not.toBeNull();
+      monitor.stop();
+      expect((monitor as any).interval).toBeNull();
+    });
+
+    it('stop is idempotent', () => {
+      monitor.stop(); // never started
+      expect((monitor as any).interval).toBeNull();
+      monitor.start();
+      monitor.stop();
+      monitor.stop(); // second stop should not throw
+      expect((monitor as any).interval).toBeNull();
+    });
+  });
 });
 
 describe('classifyApp', () => {

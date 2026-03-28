@@ -103,4 +103,32 @@ describe('LocalStore', () => {
     expect(stats.unsent).toBe(1);
     expect(stats.sent).toBe(1);
   });
+
+  it('purgeOlderThan only removes sent captures', () => {
+    store.insert({ id: 'cap-1', type: 'screenshot', timestamp: '2026-03-28T10:00:00Z', data: 'a' });
+    store.insert({ id: 'cap-2', type: 'screenshot', timestamp: '2026-03-28T10:01:00Z', data: 'b' });
+    store.markSent('cap-1');
+
+    // Purge with 0 days should remove all sent captures (created_at <= now)
+    const purged = store.purgeOlderThan(0);
+    expect(purged).toBe(1);
+    // Unsent record should still exist
+    expect(store.getUnsent()).toHaveLength(1);
+    expect(store.getUnsent()[0].id).toBe('cap-2');
+  });
+
+  it('getStats returns zeros on empty database', () => {
+    const stats = store.getStats();
+    expect(stats.total).toBe(0);
+    expect(stats.unsent).toBe(0);
+    expect(stats.sent).toBe(0);
+  });
+
+  it('close prevents further operations', () => {
+    store.insert({ id: 'cap-1', type: 'screenshot', timestamp: '2026-03-28T10:00:00Z', data: 'a' });
+    store.close();
+    expect(() => store.getUnsent()).toThrow();
+    // Re-open for afterEach cleanup
+    store = new LocalStore(TEST_DB);
+  });
 });
