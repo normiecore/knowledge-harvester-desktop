@@ -1,10 +1,11 @@
 import { config } from './config.js';
 import { logger } from './logger.js';
-import { WindowTracker } from './window-tracker.js';
+import { ActivityMonitor, type CaptureEvent } from './activity-monitor.js';
 import { ScreenshotCapture } from './screenshot-capture.js';
 import { LocalStore } from './local-store.js';
 import { PipelineClient } from './pipeline-client.js';
 import { Sender } from './sender.js';
+import { buildDashboard, updateDashboardState, broadcastCapture } from './dashboard.js';
 import { v4 as uuid } from 'uuid';
 
 async function main(): Promise<void> {
@@ -13,43 +14,72 @@ async function main(): Promise<void> {
   const store = new LocalStore('captures.db');
   const client = new PipelineClient(config.pipelineUrl);
   const sender = new Sender(store, client);
+  const screenshotCapture = new ScreenshotCapture();
 
-  // Track current window state so screenshots include context
-  let currentWindow = { title: '', owner: '', timestamp: '' };
+  const monitor = new ActivityMonitor({
+    windowPollMs: config.windowPollIntervalMs,
+    idleThresholdMs: config.idleThresholdMs,
+    periodicCaptureMs: config.periodicCaptureMs,
+    onCapture: async (event: CaptureEvent) => {
+      const buf = await screenshotCapture.captureNow();
+      if (!buf) return;
 
-  // Window tracker — stores window changes locally and updates current state
-  const windowTracker = new WindowTracker(config.windowPollIntervalMs, (info) => {
-    logger.debug({ title: info.title, owner: info.owner }, 'Window change');
-    currentWindow = { title: info.title, owner: info.owner, timestamp: info.timestamp };
-    store.insert({
-      id: uuid(),
-      type: 'window',
-      timestamp: info.timestamp,
-      data: JSON.stringify(info),
-    });
-  });
-
-  // Screenshot capture — stores window context alongside base64 screenshot
-  // The pipeline uses the window context for text-based extraction and
-  // sensitivity filtering. The base64 image is stored for future OCR.
-  const screenshotCapture = new ScreenshotCapture(config.screenshotIntervalMs, (buf, ts) => {
-    logger.debug({ size: buf.length, windowTitle: currentWindow.title }, 'Screenshot captured');
-    store.insert({
-      id: uuid(),
-      type: 'screenshot',
-      timestamp: ts,
-      data: JSON.stringify({
-        windowTitle: currentWindow.title,
-        windowOwner: currentWindow.owner,
+      const captureData = {
+        windowTitle: event.windowTitle,
+        windowOwner: event.windowOwner,
         screenshotBase64: buf.toString('base64'),
-        capturedAt: ts,
-      }),
-    });
+        capturedAt: event.capturedAt,
+      };
+
+      const metadata = {
+        triggerReason: event.triggerReason,
+        appCategory: event.appCategory,
+        durationSeconds: event.durationSeconds,
+        idleSeconds: event.idleSeconds,
+        documentName: event.documentName,
+        browserUrl: event.browserUrl,
+        previousWindow: event.previousWindow,
+        sessionContext: event.sessionContext,
+        captureSequence: event.captureSequence,
+        windowTitle: event.windowTitle,
+        windowOwner: event.windowOwner,
+      };
+
+      store.insert({
+        id: uuid(),
+        type: 'screenshot',
+        timestamp: event.capturedAt,
+        data: JSON.stringify(captureData),
+        metadata: JSON.stringify(metadata),
+      });
+
+      logger.info({
+        trigger: event.triggerReason,
+        window: event.windowTitle,
+        duration: event.durationSeconds,
+        app: event.appCategory,
+      }, 'Capture stored');
+
+      broadcastCapture(metadata);
+    },
   });
 
-  // Start all components
-  windowTracker.start();
-  screenshotCapture.start();
+  // Start dashboard
+  const dashboard = await buildDashboard(store);
+  await dashboard.listen({ port: config.dashboardPort, host: '0.0.0.0' });
+  logger.info({ port: config.dashboardPort }, 'Dashboard running at http://localhost:' + config.dashboardPort);
+
+  // Update dashboard with activity state every second
+  const stateInterval = setInterval(() => {
+    const win = monitor.getCurrentWindow();
+    updateDashboardState({
+      state: monitor.getState(),
+      currentWindow: win ? { title: win.title, owner: win.owner } : null,
+    });
+  }, 1000);
+
+  // Start capture system
+  monitor.start();
   sender.start();
 
   // Purge sent captures older than 7 days, every 6 hours
@@ -59,12 +89,13 @@ async function main(): Promise<void> {
   }, 6 * 60 * 60 * 1000);
 
   // Graceful shutdown
-  const shutdown = () => {
+  const shutdown = async () => {
     logger.info('Shutting down...');
-    windowTracker.stop();
-    screenshotCapture.stop();
+    monitor.stop();
     sender.stop();
+    clearInterval(stateInterval);
     clearInterval(purgeInterval);
+    await dashboard.close();
     store.close();
     logger.info('Shutdown complete');
     process.exit(0);
@@ -73,7 +104,7 @@ async function main(): Promise<void> {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  logger.info('Desktop agent running. Press Ctrl+C to stop.');
+  logger.info('Desktop agent running. Dashboard: http://localhost:' + config.dashboardPort);
 }
 
 main().catch((err) => {

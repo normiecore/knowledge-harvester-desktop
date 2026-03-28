@@ -25,46 +25,43 @@ describe('Sender', () => {
     cleanup();
   });
 
-  it('drains unsent captures to the pipeline client', async () => {
-    store.insert({ id: 'cap-1', type: 'window', timestamp: '2026-03-27T10:00:00Z', data: '{"title":"VS Code"}' });
-    store.insert({ id: 'cap-2', type: 'window', timestamp: '2026-03-27T10:00:01Z', data: '{"title":"Chrome"}' });
+  it('drains unsent captures with enriched metadata', async () => {
+    store.insert({
+      id: 'cap-1',
+      type: 'screenshot',
+      timestamp: '2026-03-28T10:00:00Z',
+      data: '{"screenshotBase64":"abc"}',
+      metadata: JSON.stringify({ triggerReason: 'window_change', appCategory: 'editor' }),
+    });
 
-    const mockClient = {
-      sendCapture: vi.fn().mockResolvedValue(true),
-    };
-
-    const sender = new Sender(store, mockClient as any, 100000); // long interval, we'll call drain manually
-
-    // Access private drain method via prototype
+    const mockClient = { sendCapture: vi.fn().mockResolvedValue(true) };
+    const sender = new Sender(store, mockClient as any, 100000);
     await (sender as any).drain();
 
-    expect(mockClient.sendCapture).toHaveBeenCalledTimes(2);
-    expect(store.getUnsent()).toHaveLength(0); // both marked sent
+    expect(mockClient.sendCapture).toHaveBeenCalledTimes(1);
+    const payload = mockClient.sendCapture.mock.calls[0][0];
+    expect(payload.metadata.triggerReason).toBe('window_change');
+    expect(payload.metadata.appCategory).toBe('editor');
+    expect(payload.sourceType).toBe('desktop_screenshot');
+    expect(store.getUnsent()).toHaveLength(0);
   });
 
   it('stops draining on pipeline failure', async () => {
-    store.insert({ id: 'cap-1', type: 'window', timestamp: '2026-03-27T10:00:00Z', data: '{"title":"VS Code"}' });
-    store.insert({ id: 'cap-2', type: 'window', timestamp: '2026-03-27T10:00:01Z', data: '{"title":"Chrome"}' });
+    store.insert({ id: 'cap-1', type: 'screenshot', timestamp: '2026-03-28T10:00:00Z', data: 'a' });
+    store.insert({ id: 'cap-2', type: 'screenshot', timestamp: '2026-03-28T10:00:01Z', data: 'b' });
 
-    const mockClient = {
-      sendCapture: vi.fn().mockResolvedValue(false), // pipeline down
-    };
-
+    const mockClient = { sendCapture: vi.fn().mockResolvedValue(false) };
     const sender = new Sender(store, mockClient as any, 100000);
     await (sender as any).drain();
 
-    expect(mockClient.sendCapture).toHaveBeenCalledTimes(1); // stopped after first failure
-    expect(store.getUnsent()).toHaveLength(2); // neither marked sent (first failed, second not attempted)
+    expect(mockClient.sendCapture).toHaveBeenCalledTimes(1);
+    expect(store.getUnsent()).toHaveLength(2);
   });
 
   it('does nothing when store is empty', async () => {
-    const mockClient = {
-      sendCapture: vi.fn().mockResolvedValue(true),
-    };
-
+    const mockClient = { sendCapture: vi.fn().mockResolvedValue(true) };
     const sender = new Sender(store, mockClient as any, 100000);
     await (sender as any).drain();
-
     expect(mockClient.sendCapture).not.toHaveBeenCalled();
   });
 });

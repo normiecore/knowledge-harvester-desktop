@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge Harvester — Desktop Agent</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+  h1 { font-size: 1.4em; color: #a5b4fc; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 0.85em; margin-bottom: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat { background: #1e293b; border-radius: 8px; padding: 16px; text-align: center; }
+  .stat .value { font-size: 2em; font-weight: 700; color: #6366f1; }
+  .stat .label { font-size: 0.75em; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .stat.active .value { color: #22c55e; }
+  .stat.idle .value { color: #f59e0b; }
+  .current-window { background: #1e293b; border-radius: 8px; padding: 16px; margin-bottom: 20px; border-left: 4px solid #6366f1; }
+  .current-window .title { font-size: 1.1em; color: #f1f5f9; }
+  .current-window .owner { color: #94a3b8; font-size: 0.85em; }
+  .feed { display: flex; flex-direction: column; gap: 8px; }
+  .capture { background: #1e293b; border-radius: 8px; padding: 12px 16px; display: flex; gap: 16px; align-items: center; cursor: pointer; transition: background 0.15s; }
+  .capture:hover { background: #334155; }
+  .capture .time { color: #64748b; font-size: 0.8em; min-width: 80px; }
+  .capture .trigger { font-size: 0.7em; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+  .trigger.window_change { background: #312e81; color: #a5b4fc; }
+  .trigger.idle_to_active { background: #422006; color: #fbbf24; }
+  .trigger.periodic { background: #052e16; color: #4ade80; }
+  .capture .info { flex: 1; }
+  .capture .window-title { color: #e2e8f0; font-size: 0.9em; }
+  .capture .meta { color: #64748b; font-size: 0.75em; margin-top: 2px; }
+  .capture .duration { color: #94a3b8; font-size: 0.8em; min-width: 60px; text-align: right; }
+  .sent-badge { font-size: 0.65em; padding: 2px 6px; border-radius: 8px; }
+  .sent-badge.yes { background: #052e16; color: #4ade80; }
+  .sent-badge.no { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+  .capture .screenshot-thumb { width: 80px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #334155; }
+  .section-title { color: #94a3b8; font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 8px; }
+  .screenshot-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; }
+  .screenshot-modal.open { display: flex; }
+  .screenshot-modal img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+</style>
+</head>
+<body>
+  <h1>Knowledge Harvester — Desktop Agent</h1>
+  <p class="subtitle">Activity-aware capture preview</p>
+  <div class="stats">
+    <div class="stat" id="stat-state"><div class="value" id="state-value">--</div><div class="label">State</div></div>
+    <div class="stat"><div class="value" id="total-value">--</div><div class="label">Total Captures</div></div>
+    <div class="stat"><div class="value" id="queued-value">--</div><div class="label">Queued</div></div>
+    <div class="stat"><div class="value" id="sent-value">--</div><div class="label">Sent</div></div>
+  </div>
+  <div class="current-window" id="current-window">
+    <div class="title" id="cw-title">Waiting for data...</div>
+    <div class="owner" id="cw-owner"></div>
+  </div>
+  <div class="section-title">Recent Captures</div>
+  <div class="feed" id="feed"></div>
+  <div class="screenshot-modal" id="modal" onclick="this.classList.remove('open')">
+    <img id="modal-img" src="">
+  </div>
+<script>
+  const feed = document.getElementById('feed');
+  const modal = document.getElementById('modal');
+  const modalImg = document.getElementById('modal-img');
+  function fmt(ts) {
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  function fmtDuration(s) {
+    if (!s && s !== 0) return '';
+    if (s < 60) return s + 's';
+    return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+  }
+  function renderCapture(c) {
+    const meta = c.metadata || {};
+    const div = document.createElement('div');
+    div.className = 'capture';
+    div.innerHTML =
+      (c.hasScreenshot ? '<img class="screenshot-thumb" src="/api/screenshot/' + c.id + '" loading="lazy" onclick="event.stopPropagation(); showScreenshot(\'' + c.id + '\')">' : '') +
+      '<div class="time">' + fmt(c.timestamp) + '</div>' +
+      '<span class="trigger ' + (meta.triggerReason || '') + '">' + (meta.triggerReason || c.type) + '</span>' +
+      '<div class="info">' +
+        '<div class="window-title">' + (meta.windowOwner || '') + (meta.documentName ? ' — ' + meta.documentName : (c.data && c.data.windowTitle ? ' — ' + c.data.windowTitle : '')) + '</div>' +
+        '<div class="meta">' + (meta.appCategory || '') + (meta.browserUrl ? ' · ' + meta.browserUrl : '') + (meta.sessionContext ? ' · ctx: ' + meta.sessionContext.length + ' windows' : '') + '</div>' +
+      '</div>' +
+      '<div class="duration">' + fmtDuration(meta.durationSeconds) + '</div>' +
+      '<span class="sent-badge ' + (c.sent ? 'yes' : 'no') + '">' + (c.sent ? 'sent' : 'queued') + '</span>';
+    if (c.hasScreenshot) div.onclick = function() { showScreenshot(c.id); };
+    return div;
+  }
+  function showScreenshot(id) {
+    modalImg.src = '/api/screenshot/' + id;
+    modal.classList.add('open');
+  }
+  async function refresh() {
+    const [recentRes, statsRes, stateRes] = await Promise.all([
+      fetch('/api/recent'), fetch('/api/stats'), fetch('/api/state')
+    ]);
+    const recent = await recentRes.json();
+    const stats = await statsRes.json();
+    const state = await stateRes.json();
+    document.getElementById('state-value').textContent = state.state;
+    document.getElementById('stat-state').className = 'stat ' + state.state;
+    document.getElementById('total-value').textContent = stats.total;
+    document.getElementById('queued-value').textContent = stats.unsent;
+    document.getElementById('sent-value').textContent = stats.sent;
+    if (state.currentWindow) {
+      document.getElementById('cw-title').textContent = state.currentWindow.title;
+      document.getElementById('cw-owner').textContent = state.currentWindow.owner;
+    }
+    feed.innerHTML = '';
+    for (const c of recent) feed.appendChild(renderCapture(c));
+  }
+  var ws = new WebSocket('ws://' + location.host + '/ws');
+  ws.onmessage = function() { refresh(); };
+  ws.onclose = function() { setTimeout(function() { location.reload(); }, 3000); };
+  refresh();
+  setInterval(refresh, 5000);
+</script>
+</body>
+</html>

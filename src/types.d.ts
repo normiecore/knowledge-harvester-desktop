@@ -6,3 +6,8 @@ declare module 'screenshot-desktop' {
   function screenshot(options?: ScreenshotOptions): Promise<Buffer>;
   export default screenshot;
 }
+
+declare module 'desktop-idle' {
+  function getIdleTime(): number;
+  export default { getIdleTime };
+}
